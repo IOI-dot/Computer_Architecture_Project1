@@ -1,0 +1,5 @@
+April 11, 11:30AM: Finished the single-cycle datapath, added the RV32IC decompressor, and set up the basic pipeline registers.
+
+April 12, 2:15PM: Added the unified memory and Stall FSM. Finished the forwarding unit and fixed an issue in the pipelining registers.
+
+April 13, 1:00PM: Finished the final hazard detection logic and generated all the architectural diagrams for the MS3 report.
