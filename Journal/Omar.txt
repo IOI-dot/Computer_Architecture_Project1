@@ -1,5 +1,7 @@
-April 11, 11:30AM: Finished the single-cycle datapath, added the RV32IC decompressor, and set up the basic pipeline registers.
+April 13, 10:00AM: Started working on the single-cycle datapath diagram, mapping out all components and signal connections based on the RV32I spec.
 
-April 12, 2:15PM: Added the unified memory and Stall FSM. Finished the forwarding unit and fixed an issue in the pipelining registers.
+April 14, 12:30PM: Completed the full datapath block diagram. Verified all control signals, MUX select lines, and PC logic paths match the Verilog implementation. Assisted Mahmoud in wiring up the top-level module connections and reviewed the control unit logic together.
 
-April 13, 1:00PM: Finished the final hazard detection logic and generated all the architectural diagrams for the MS3 report.
+April 15, 3:00PM: Reviewed and cross-checked the full Verilog codebase against the diagram to make sure everything is consistent. Made minor fixes to the top-level module. Prepared the submission folder structure.
+
+April 16, 11:00AM: Finalized the datapath diagram, wrote the README, updated journals, and packaged everything for MS2 submission.
