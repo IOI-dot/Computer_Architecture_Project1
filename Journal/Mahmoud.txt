@@ -1,1 +1,7 @@
-April 15: made the code for single cycle and tested it 
+April 13, 2:00PM: Started implementing the single-cycle Verilog modules. Completed the ALU, ALU control unit, and immediate generator.
+
+April 14, 11:00AM: Implemented the register file, data memory with byte-addressable load/store support, and the branch unit. Wired up the top-level RISCV_Top module connecting all components.
+
+April 15, 1:00PM: Completed the control unit covering all 42 RV32I instructions including halt logic for ECALL, EBREAK, FENCE, and FENCE.TSO. Finished and tested the full single-cycle design in simulation.
+
+April 16, 10:00AM: Ran final tests, fixed minor issues in the data memory read logic, and confirmed correct behavior across all instruction types.
