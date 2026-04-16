@@ -5,3 +5,5 @@ April 14, 12:30PM: Completed the full datapath block diagram. Verified all contr
 April 15, 3:00PM: Reviewed and cross-checked the full Verilog codebase against the diagram to make sure everything is consistent. Made minor fixes to the top-level module. Prepared the submission folder structure.
 
 April 16, 11:00AM: Finalized the datapath diagram, wrote the README, updated journals, and packaged everything for MS2 submission.
+
+April 16, 11:00AM: Wrote the Report for Milestone 2.
