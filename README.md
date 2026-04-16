@@ -39,3 +39,4 @@ Known Issues:
 - journal/Mahmoud.txt
 - Verilog/ (all .v source files)
 - test/ (test .hex file and testbench)
+- report/ (PDF report with datapath diagram and design documentation)
