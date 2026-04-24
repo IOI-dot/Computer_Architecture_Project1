@@ -1,114 +1,71 @@
 `timescale 1ns / 1ps
-////////////////////////////////////////////////////////////////////////////////
-// Module: UnifiedMem
-// Single-ported, byte-addressable memory for MS3.
-// Time-multiplexed: phase=0 -> instruction fetch, phase=1 -> data access.
-// Size: 512 words = 2KB  (instructions at low addresses, data at high)
-////////////////////////////////////////////////////////////////////////////////
-module UnifiedMem #(parameter WORDS = 512)(
-    input         clk,
-    // Instruction port (used when phase=0)
-    input  [31:0] pc,
-    output [31:0] instruction,
-    // Data port (used when phase=1)
-    input         MemRead,
-    input         MemWrite,
-    input  [31:0] data_addr,
-    input  [31:0] data_in,
-    input  [2:0]  funct3,
+
+module UnifiedMem #(
+    parameter WORDS = 512,
+    parameter INIT_FILE = "C:/Users/Mahmoud Hossam/Desktop/p1test.hex"
+)(
+    input              clk,
+    input      [31:0] pc,
+    output     [31:0] instruction,
+    input              MemRead,
+    input              MemWrite,
+    input      [31:0] data_addr,
+    input      [31:0] data_in,
+    input      [2:0]  funct3,
     output reg [31:0] data_out,
-    // Phase: 0=IF cycle, 1=MEM cycle
-    input         phase
+    input              phase
 );
 
-    reg [31:0] mem [0:WORDS-1];
+    reg [7:0] mem [0:(WORDS*4)-1];
 
-    // ------------------------------------------------------------------ //
-    //  Instruction read – purely combinational, active on phase=0         //
-    // ------------------------------------------------------------------ //
-    assign instruction = mem[pc[31:2]];
+    // Instruction Fetch (Phase 0)
+    assign instruction = {mem[pc+3], mem[pc+2], mem[pc+1], mem[pc]};
 
-    // ------------------------------------------------------------------ //
-    //  Data read – combinational                                          //
-    // ------------------------------------------------------------------ //
-    wire [31:0] dword    = mem[data_addr[31:2]];
-    wire [1:0]  byte_off = data_addr[1:0];
-
+    // Data Read - FIX: Removed '&& phase' to prevent the 0-glitch race condition
     always @(*) begin
         data_out = 32'b0;
         if (MemRead) begin
             case (funct3)
-                3'b000: // LB  signed byte
-                    case (byte_off)
-                        2'b00: data_out = {{24{dword[7]}},  dword[7:0]};
-                        2'b01: data_out = {{24{dword[15]}}, dword[15:8]};
-                        2'b10: data_out = {{24{dword[23]}}, dword[23:16]};
-                        2'b11: data_out = {{24{dword[31]}}, dword[31:24]};
-                    endcase
-                3'b001: // LH  signed halfword
-                    case (byte_off[1])
-                        1'b0: data_out = {{16{dword[15]}}, dword[15:0]};
-                        1'b1: data_out = {{16{dword[31]}}, dword[31:16]};
-                    endcase
-                3'b010: data_out = dword; // LW
-                3'b100: // LBU unsigned byte
-                    case (byte_off)
-                        2'b00: data_out = {24'b0, dword[7:0]};
-                        2'b01: data_out = {24'b0, dword[15:8]};
-                        2'b10: data_out = {24'b0, dword[23:16]};
-                        2'b11: data_out = {24'b0, dword[31:24]};
-                    endcase
-                3'b101: // LHU unsigned halfword
-                    case (byte_off[1])
-                        1'b0: data_out = {16'b0, dword[15:0]};
-                        1'b1: data_out = {16'b0, dword[31:16]};
-                    endcase
-                default: data_out = dword;
+                3'b000: data_out = {{24{mem[data_addr][7]}},  mem[data_addr]};          
+                3'b001: data_out = {{16{mem[data_addr+1][7]}}, mem[data_addr+1], mem[data_addr]}; 
+                3'b010: data_out = {mem[data_addr+3], mem[data_addr+2], mem[data_addr+1], mem[data_addr]}; 
+                3'b100: data_out = {24'b0, mem[data_addr]};                                           
+                3'b101: data_out = {16'b0, mem[data_addr+1], mem[data_addr]};          
+                default: data_out = 32'b0;
             endcase
         end
     end
 
-    // ------------------------------------------------------------------ //
-    //  Data write – synchronous, only on phase=1                         //
-    // ------------------------------------------------------------------ //
+    // Data Write (Keep Phase gating to ensure it only writes on the correct cycle)
     always @(posedge clk) begin
         if (MemWrite && phase) begin
             case (funct3)
-                3'b000: // SB
-                    case (byte_off)
-                        2'b00: mem[data_addr[31:2]][7:0]   <= data_in[7:0];
-                        2'b01: mem[data_addr[31:2]][15:8]  <= data_in[7:0];
-                        2'b10: mem[data_addr[31:2]][23:16] <= data_in[7:0];
-                        2'b11: mem[data_addr[31:2]][31:24] <= data_in[7:0];
-                    endcase
-                3'b001: // SH
-                    case (byte_off[1])
-                        1'b0: mem[data_addr[31:2]][15:0]  <= data_in[15:0];
-                        1'b1: mem[data_addr[31:2]][31:16] <= data_in[15:0];
-                    endcase
-                default: mem[data_addr[31:2]] <= data_in; // SW (010) + default
+                3'b000: mem[data_addr] <= data_in[7:0]; 
+                3'b001: begin                                           
+                    mem[data_addr]   <= data_in[7:0];
+                    mem[data_addr+1] <= data_in[15:8];
+                end
+                3'b010: begin                                           
+                    mem[data_addr]   <= data_in[7:0];
+                    mem[data_addr+1] <= data_in[15:8];
+                    mem[data_addr+2] <= data_in[23:16];
+                    mem[data_addr+3] <= data_in[31:24];
+                end
             endcase
         end
     end
 
-    // ------------------------------------------------------------------ //
-    //  Initial memory content                                             //
-    //  Instructions at word 0..N, data scratch area at word 256+         //
-    // ------------------------------------------------------------------ //
-    integer k;
-  initial begin
-    for (k = 0; k < WORDS; k = k + 1) mem[k] = 32'b0;
-
-    mem[0] = 32'h00500093; // addi x1, x0, 5
-    mem[1] = 32'h00500113; // addi x2, x0, 5
-    mem[2] = 32'h00208863; // beq  x1, x2, +16  (TAKEN -> word 6)
-    mem[3] = 32'h00A00193; // addi x3, x0, 10   <- must be FLUSHED
-    mem[4] = 32'h01400213; // addi x4, x0, 20   <- must be FLUSHED
-    mem[5] = 32'h01E00293; // addi x5, x0, 30   <- must be FLUSHED
-    mem[6] = 32'h00000013; // NOP
-    mem[7] = 32'h00000013; // NOP
-    mem[8] = 32'h00000013; // NOP
-    mem[9] = 32'h00000073; // ecall -> HALT
-end
-
+    // Memory Loading
+    reg [31:0] temp_mem [0:WORDS-1];
+    integer i;
+    initial begin
+        for (i = 0; i < WORDS * 4; i = i + 1) mem[i] = 8'h0;
+        $readmemh(INIT_FILE, temp_mem);
+        for (i = 0; i < WORDS; i = i + 1) begin
+            mem[i*4]   = temp_mem[i][7:0];
+            mem[i*4+1] = temp_mem[i][15:8];
+            mem[i*4+2] = temp_mem[i][23:16];
+            mem[i*4+3] = temp_mem[i][31:24];
+        end
+    end
 endmodule

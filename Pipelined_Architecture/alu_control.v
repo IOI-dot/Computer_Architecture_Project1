@@ -1,68 +1,57 @@
+/*******************************************************************
+*
+* Module: alu_control.v
+* Project: CPU_COMPUTER_ARCH_COURSE_SPRING2026
+* Description: ALU Control Unit. Decodes the 3-bit ALUOp from the 
+* Main Control, along with funct3 and funct7[30], to generate the 
+* 4-bit ALU selection signal.
+*
+**********************************************************************/
 `timescale 1ns / 1ps
-////////////////////////////////////////////////////////////////////////////////
-// Module: alu_control
-// Decodes ALUOp + funct3 + funct7[30] into a 4-bit ALU select.
-//
-// ALU_sel encoding (matches alu.v MUX16x1):
-//   0000 = AND
-//   0001 = OR
-//   0010 = ADD
-//   0100 = XOR
-//   0110 = SUB
-//   0111 = SLL   (shift left logical)
-//   1000 = SRL   (shift right logical)
-//   1001 = SRA   (shift right arithmetic)
-//   1010 = SLT   (signed less-than -> result 0 or 1)
-//   1011 = SLTU  (unsigned less-than)
-//   1100 = PASS_B (pass immediate through; used by LUI)
-//
-// ALUOp:
-//   2'b00 -> ADD  (loads, stores)
-//   2'b01 -> branch comparison (use funct3 to pick operation)
-//   2'b10 -> R-type
-//   2'b11 -> I-type ALU (same as R-type; funct7 ignored except shifts)
-////////////////////////////////////////////////////////////////////////////////
+
 module alu_control(
-    input  [1:0] ALUOp,
-    input  [2:0] funct3,
-    input        funct7_b30,
-    output reg [3:0] ALU_sel
+    input  [2:0] ALUOp,      // Expanded to 3 bits from main control unit
+    input  [2:0] funct3,     // Inst[14:12]
+    input        funct7_b30, // Inst[30]
+    output reg [3:0] ALU_sel // 4-bit ALU operation select
 );
 
     always @(*) begin
-        case (ALUOp)
-            // --- Loads / Stores / LUI base (just ADD) -------------------
-            2'b00: ALU_sel = 4'b0010; // ADD
+        casex ({ALUOp, funct3, funct7_b30})
+            
+            // NON-ALU INSTRUCTIONS
+            // ALUOp = 000 -> Force ADD (Loads, Stores, U-Types, Jumps)
+            7'b000_xxx_x: ALU_sel = 4'b0010;
 
-            // --- Branch: use funct3 to decide compare operation ---------
-            2'b01: begin
-                case (funct3)
-                    3'b000: ALU_sel = 4'b0110; // BEQ  -> SUB, check zero
-                    3'b001: ALU_sel = 4'b0110; // BNE  -> SUB, check !zero
-                    3'b100: ALU_sel = 4'b1010; // BLT  -> SLT
-                    3'b101: ALU_sel = 4'b1010; // BGE  -> SLT  (invert result in top)
-                    3'b110: ALU_sel = 4'b1011; // BLTU -> SLTU
-                    3'b111: ALU_sel = 4'b1011; // BGEU -> SLTU (invert)
-                    default: ALU_sel = 4'b0110;
-                endcase
-            end
+            // ALUOp = 001 -> Force SUB (Branches, for flag generation)
+            7'b001_xxx_x: ALU_sel = 4'b0110;
 
-            // --- R-type and I-type ALU -----------------------------------
-            2'b10, 2'b11: begin
-                case (funct3)
-                    3'b000: ALU_sel = funct7_b30 ? 4'b0110 : 4'b0010; // ADD/SUB (I-type never SUB)
-                    3'b001: ALU_sel = 4'b0111; // SLL / SLLI
-                    3'b010: ALU_sel = 4'b1010; // SLT / SLTI
-                    3'b011: ALU_sel = 4'b1011; // SLTU/ SLTIU
-                    3'b100: ALU_sel = 4'b0100; // XOR / XORI
-                    3'b101: ALU_sel = funct7_b30 ? 4'b1001 : 4'b1000; // SRA/SRL
-                    3'b110: ALU_sel = 4'b0001; // OR  / ORI
-                    3'b111: ALU_sel = 4'b0000; // AND / ANDI
-                    default: ALU_sel = 4'b0010;
-                endcase
-            end
 
-            default: ALU_sel = 4'b0010;
+            // R-TYPE INSTRUCTIONS (ALUOp = 010)
+            7'b010_000_0: ALU_sel = 4'b0010; // ADD
+            7'b010_000_1: ALU_sel = 4'b0110; // SUB
+            7'b010_001_x: ALU_sel = 4'b0100; // SLL
+            7'b010_010_x: ALU_sel = 4'b1000; // SLT
+            7'b010_011_x: ALU_sel = 4'b1001; // SLTU
+            7'b010_100_x: ALU_sel = 4'b0011; // XOR
+            7'b010_101_0: ALU_sel = 4'b0101; // SRL
+            7'b010_101_1: ALU_sel = 4'b0111; // SRA
+            7'b010_110_x: ALU_sel = 4'b0001; // OR
+            7'b010_111_x: ALU_sel = 4'b0000; // AND
+
+
+            // I-TYPE INSTRUCTIONS 
+            7'b011_000_x: ALU_sel = 4'b0010; // ADDI 
+            7'b011_001_x: ALU_sel = 4'b0100; // SLLI
+            7'b011_010_x: ALU_sel = 4'b1000; // SLTI
+            7'b011_011_x: ALU_sel = 4'b1001; // SLTIU
+            7'b011_100_x: ALU_sel = 4'b0011; // XORI
+            7'b011_101_0: ALU_sel = 4'b0101; // SRLI
+            7'b011_101_1: ALU_sel = 4'b0111; // SRAI
+            7'b011_110_x: ALU_sel = 4'b0001; // ORI
+            7'b011_111_x: ALU_sel = 4'b0000; // ANDI
+
+            default:      ALU_sel = 4'b0010; // default to ADD
         endcase
     end
 

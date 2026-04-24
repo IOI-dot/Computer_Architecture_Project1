@@ -1,91 +1,116 @@
+/*******************************************************************
+*
+* Module: control_unit.v
+* Project: CPU_COMPUTER_ARCH_COURSE_SPRING2026
+* Description: Complete RISC-V Control Unit for 42 instructions.
+* Includes HALT logic for ECALL, EBREAK, and FENCE.
+*
+**********************************************************************/
 `timescale 1ns / 1ps
-////////////////////////////////////////////////////////////////////////////////
-// Module: control_unit
-// Full RV32I control unit.
-// Decodes inst[6:2] (opcode without the always-11 LSBs).
-//
-// ALUOp encoding:
-//   2'b00 -> ADD  (loads, stores, AUIPC address calc)
-//   2'b01 -> branch  (ALU_control uses funct3 to pick BEQ/BNE/BLT…)
-//   2'b10 -> R-type  (ALU_control uses full funct3/funct7)
-//   2'b11 -> I-type ALU (same as R but funct7 only relevant for shifts)
-//
-// New outputs vs MS2:
-//   Jump    – 1 for JAL / JALR
-//   JALR    – 1 for JALR specifically (PC = rs1+imm)
-//   LUI     – 1 for LUI   (ALU just passes immediate)
-//   AUIPC   – 1 for AUIPC (ALU = PC + imm)
-//   Halt    – 1 for ECALL/EBREAK/FENCE/PAUSE (stop execution)
-////////////////////////////////////////////////////////////////////////////////
+
 module control_unit(
-    input  [4:0] opcode,    // inst[6:2]
+    input  [4:0] opcode,     // Inst[6:2]
     output reg       Branch,
+    output reg       Jump,      // Unconditional Jump (JAL, JALR)
+    output reg       Jalr,      // Specifically for JALR address logic
     output reg       MemRead,
-    output reg       MemtoReg,
-    output reg [1:0] ALUOp,
+    output reg [1:0] MemtoReg,  // 00: ALU, 01: Mem, 10: PC+4
+    output reg [2:0] ALUOp,     // 000: ADD, 001: SUB, 010: R-Type, 011: I-Type
     output reg       MemWrite,
-    output reg       ALUSrc,
+    output reg [1:0] ALUSrcA,   // 00: rs1, 01: PC, 10: Zero (0)
+    output reg       ALUSrcB,   // 0: rs2, 1: imm
     output reg       RegWrite,
-    output reg       Jump,
-    output reg       JALR,
-    output reg       LUI,
-    output reg       AUIPC,
-    output reg       Halt
+    output reg       halt       // <--- NEW: Halt signal to freeze PC
 );
 
     always @(*) begin
-        // Safe defaults (NOP)
-        Branch   = 0; MemRead  = 0; MemtoReg = 0;
-        ALUOp    = 2'b00;
-        MemWrite = 0; ALUSrc   = 0; RegWrite = 0;
-        Jump     = 0; JALR     = 0;
-        LUI      = 0; AUIPC    = 0; Halt     = 0;
+        // --- Default Values (Prevents Latches) ---
+        Branch   = 1'b0;
+        Jump     = 1'b0;
+        Jalr     = 1'b0;
+        MemRead  = 1'b0;
+        MemtoReg = 2'b00;
+        ALUOp    = 3'b000;
+        MemWrite = 1'b0;
+        ALUSrcA  = 2'b00;
+        ALUSrcB  = 1'b0;
+        RegWrite = 1'b0;
+        halt     = 1'b0;    // Default: Run
 
         case (opcode)
-            // ---- R-type ------------------------------------------------
+            // R-Format
             5'b01100: begin
-                RegWrite = 1; ALUOp = 2'b10;
+                ALUOp    = 3'b010;
+                RegWrite = 1'b1;
             end
-            // ---- I-type ALU  (ADDI SLTI SLTIU XORI ORI ANDI SLLI SRLI SRAI)
+            
+            // I-Format (ALU Operations like ADDI, SLTI)
             5'b00100: begin
-                RegWrite = 1; ALUSrc = 1; ALUOp = 2'b11;
+                ALUOp    = 3'b011;
+                ALUSrcB  = 1'b1;
+                RegWrite = 1'b1;
             end
-            // ---- Load  (LB LH LW LBU LHU) ------------------------------
+            
+            // Load (LW, LH, LB, etc.)
             5'b00000: begin
-                RegWrite = 1; MemRead = 1; MemtoReg = 1; ALUSrc = 1;
-                ALUOp = 2'b00;
+                MemRead  = 1'b1;
+                MemtoReg = 2'b01;
+                ALUSrcB  = 1'b1;
+                RegWrite = 1'b1;
             end
-            // ---- Store  (SB SH SW) -------------------------------------
+            
+            // Store (SW, SH, SB)
             5'b01000: begin
-                MemWrite = 1; ALUSrc = 1; ALUOp = 2'b00;
+                MemWrite = 1'b1;
+                ALUSrcB  = 1'b1;
             end
-            // ---- Branch  (BEQ BNE BLT BGE BLTU BGEU) ------------------
+            
+            // Branch (BEQ, BNE, BLT, etc.)
             5'b11000: begin
-                Branch = 1; ALUOp = 2'b01;
+                Branch   = 1'b1;
+                ALUOp    = 3'b001; // Force SUB for flag generation
             end
-            // ---- JAL ---------------------------------------------------
-            5'b11011: begin
-                RegWrite = 1; Jump = 1; ALUSrc = 1; ALUOp = 2'b00;
-                // rd = PC+4 (handled in top)
-            end
-            // ---- JALR --------------------------------------------------
-            5'b11001: begin
-                RegWrite = 1; Jump = 1; JALR = 1; ALUSrc = 1; ALUOp = 2'b00;
-            end
-            // ---- LUI ---------------------------------------------------
+            
+            // LUI (Load Upper Immediate)
             5'b01101: begin
-                RegWrite = 1; LUI = 1; ALUSrc = 1; ALUOp = 2'b00;
+                ALUSrcA  = 2'b10;  // Select Zero
+                ALUSrcB  = 1'b1;   // Select Imm
+                RegWrite = 1'b1;
             end
-            // ---- AUIPC -------------------------------------------------
+            
+            // AUIPC (Add Upper Immediate to PC)
             5'b00101: begin
-                RegWrite = 1; AUIPC = 1; ALUSrc = 1; ALUOp = 2'b00;
+                ALUSrcA  = 2'b01;  // Select PC
+                ALUSrcB  = 1'b1;   // Select Imm
+                RegWrite = 1'b1;
             end
-            // ---- HALT (ECALL/EBREAK/FENCE/PAUSE/FENCE.TSO) opcode=11100
-            5'b11100: begin
-                Halt = 1;
+            
+            // JAL (Jump and Link)
+            5'b11011: begin
+                Jump     = 1'b1;
+                MemtoReg = 2'b10;  // Link: Write PC+4 to Register
+                RegWrite = 1'b1;
             end
-            // ---- Default / unknown: treat as NOP -----------------------
-            default: begin end
+            
+            // JALR (Jump and Link Register)
+            5'b11001: begin
+                Jump     = 1'b1;
+                Jalr     = 1'b1;
+                MemtoReg = 2'b10;  // Link: Write PC+4 to Register
+                ALUSrcB  = 1'b1;   // Target = rs1 + imm
+                RegWrite = 1'b1;
+            end
+
+            // Halt Instructions 
+            // 5'b11100: (ECALL, EBREAK)
+            // 5'b00011: (FENCE, FENCE.TSO)
+            5'b11100, 5'b00011: begin
+                halt = 1'b1;
+            end
+            
+            default: begin
+                halt = 1'b0;
+            end
         endcase
     end
 

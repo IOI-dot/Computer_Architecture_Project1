@@ -1,64 +1,58 @@
 `timescale 1ns / 1ps
-////////////////////////////////////////////////////////////////////////////////
-// Module: alu  (N=32 for RISC-V)
-// Supports all RV32I ALU operations.
-//
-// ALU_sel (s) encoding:
-//   0000 = AND
-//   0001 = OR
-//   0010 = ADD
-//   0100 = XOR
-//   0110 = SUB
-//   0111 = SLL   (shift left  logical  by B[4:0])
-//   1000 = SRL   (shift right logical  by B[4:0])
-//   1001 = SRA   (shift right arithmetic by B[4:0])
-//   1010 = SLT   (signed:   A < B ? 1 : 0)
-//   1011 = SLTU  (unsigned: A < B ? 1 : 0)
-//   1100 = PASS_B (output = B, used for LUI)
-//
-// z_flag: set when C == 0  (used for BEQ / BNE detection in top)
-// n_flag: set when C[N-1] == 1  (MSB of SUB result -> signed less-than for BLT)
-////////////////////////////////////////////////////////////////////////////////
-module alu #(parameter N = 32)(
+
+module alu #(parameter N=32)( 
     input  [N-1:0] A,
     input  [N-1:0] B,
-    input  [3:0]   s,
-    output [N-1:0] C,
-    output         z_flag,
-    output         n_flag
+    input  [3:0]   s,         
+    output reg [N-1:0] C,     
+    output z_flag,
+    output c_flag,
+    output v_flag,
+    output s_flag
 );
+    
+    wire [N-1:0] diff = A - B;
+    wire [N-1:0] sum  = A + B;
+    
+    // Hardware-level Unsigned Borrow calculation
+    // By extending to 33 bits, the 32nd bit acts as the borrow out
+    wire [N:0] sub_ext = {1'b0, A} - {1'b0, B};
+    wire borrow = sub_ext[N]; // 1 if A < B (unsigned)
+    
+    // Core Flags
+    assign z_flag = (C == {N{1'b0}});
+    assign s_flag = diff[N-1]; // Sign of the difference
+    
+    // Carry flag is inverted borrow for RISC-V branches (BGEU, BLTU)
+    assign c_flag = ~borrow; 
+    
+    // Overflow flag for signed comparisons (BLT, BGE)
+    wire overflow = (~A[N-1] & B[N-1] & diff[N-1]) | (A[N-1] & ~B[N-1] & ~diff[N-1]);
+    assign v_flag = overflow;
 
-    wire [N-1:0] sum;
-    wire [N-1:0] B_add;
-
-    // Subtraction: invert B and add 1 (cin=1) when s[2]=1 (SUB/SLT/SLTU)
-    assign B_add = s[2] ? ~B : B;
-    rca_signed #(.N(N)) adder (.a(A), .b(B_add), .cin(s[2]), .sum(sum));
-
-    // Signed less-than: MSB of (A - B)
-    wire signed_lt   = sum[N-1] ^ (A[N-1] ^ B[N-1]); // overflow-safe
-    wire unsigned_lt = (A < B);                         // synthesis handles this
-
-    reg [N-1:0] result;
     always @(*) begin
         case (s)
-            4'b0000: result = A & B;
-            4'b0001: result = A | B;
-            4'b0010: result = sum;                          // ADD
-            4'b0100: result = A ^ B;
-            4'b0110: result = sum;                          // SUB
-            4'b0111: result = A << B[4:0];                 // SLL
-            4'b1000: result = A >> B[4:0];                 // SRL
-            4'b1001: result = $signed(A) >>> B[4:0];       // SRA
-            4'b1010: result = {{(N-1){1'b0}}, signed_lt};  // SLT
-            4'b1011: result = {{(N-1){1'b0}}, unsigned_lt};// SLTU
-            4'b1100: result = B;                            // PASS_B (LUI)
-            default: result = sum;
+            4'b0000: C = A & B;                        // AND
+            4'b0001: C = A | B;                        // OR
+            4'b0010: C = sum;                          // ADD
+            4'b0011: C = A ^ B;                        // XOR
+            
+            // Shift operations
+            4'b0100: C = A << B[4:0];                  // SLL 
+            4'b0101: C = A >> B[4:0];                  // SRL 
+            4'b0111: C = $signed(A) >>> B[4:0];        // SRA 
+            
+            4'b0110: C = diff;                         // SUB
+            
+            // Set Less Than operations
+            // Hardware Signed comparison: True if Sign != Overflow
+            4'b1000: C = { {N-1{1'b0}}, (s_flag != overflow) }; // SLT 
+            
+            // Hardware Unsigned comparison: True if Borrow occurred
+            4'b1001: C = { {N-1{1'b0}}, borrow };               // SLTU 
+            
+            default: C = {N{1'b0}};                    
         endcase
     end
-
-    assign C      = result;
-    assign z_flag = (result == {N{1'b0}});
-    assign n_flag = result[N-1];
 
 endmodule
