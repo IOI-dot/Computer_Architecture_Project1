@@ -10,13 +10,23 @@ module branch_unit(
     output      branch_taken
 );
 
-    wire beq_taken  = (funct3 == 3'b000) && z_flag;
-    wire bne_taken  = (funct3 == 3'b001) && ~z_flag;
-    wire blt_taken  = (funct3 == 3'b100) && (s_flag != v_flag);
-    wire bge_taken  = (funct3 == 3'b101) && (s_flag == v_flag);
-    wire bltu_taken = (funct3 == 3'b110) && ~c_flag;
-    wire bgeu_taken = (funct3 == 3'b111) && c_flag;
+    reg taken;
+    always @(*) begin
+        if (Branch) begin
+            case (funct3)
+                3'b000: taken = z_flag;             // BEQ
+                3'b001: taken = ~z_flag;            // BNE
+                3'b100: taken = (s_flag != v_flag); // BLT
+                3'b101: taken = (s_flag == v_flag); // BGE
+                3'b110: taken = ~c_flag;            // BLTU
+                3'b111: taken = c_flag;             // BGEU
+                default: taken = 1'b0;
+            endcase
+        end else begin
+            taken = 1'b0;
+        end
+    end
 
-    assign branch_taken = Branch && (beq_taken || bne_taken || blt_taken || bge_taken || bltu_taken || bgeu_taken);
+    assign branch_taken = taken;
 
 endmodule

@@ -100,7 +100,7 @@ module RISCV_Top (
 
     // FIX: Standardized to phase
     NbitRegister #(.N(194)) ID_EX (
-        .load(phase & ~halted), .rst (reset | flush_reg), .clk (clk), 
+        .load(phase & ~halted), .rst (reset), .clk (clk), 
         .D_in({IF_ID_PC, data1, data2, imm, IF_ID_Inc, controls, IF_ID_Inst[30], IF_ID_Inst[14:12], IF_ID_Inst[19:15], IF_ID_Inst[24:20], IF_ID_Inst[11:7]}),
         .Q   ({ID_EX_PC, ID_EX_RegR1, ID_EX_RegR2, ID_EX_Imm, ID_EX_Inc,
                ID_EX_WB, ID_EX_BRANCH, ID_EX_JUMP, ID_EX_JALR, ID_EX_MEMREAD, ID_EX_MEMTOREG, ID_EX_ALUOP, ID_EX_MEMWRITE, ID_EX_ALUSRCA, ID_EX_ALUSRCB, ID_EX_HALT,

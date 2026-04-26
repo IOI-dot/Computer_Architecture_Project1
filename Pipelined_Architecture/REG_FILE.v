@@ -1,7 +1,3 @@
-/*******************************************************************
-* Module: REG_FILE.v
-* Description: Stable Single-Cycle Register File .
-**********************************************************************/
 `timescale 1ns / 1ps
 
 module REG_FILE(
@@ -19,7 +15,9 @@ module REG_FILE(
     reg [31:0] registers [31:0];
     integer i;
 
-    always @(posedge clk or posedge reset) begin
+    // THE FIX: Write on the negative edge of the clock.
+    // This gives the data half a cycle to stabilize before the pipeline reads it.
+    always @(negedge clk or posedge reset) begin
         if (reset) begin 
             for (i = 0; i < 32; i = i + 1) begin
                 registers[i] <= 32'b0;
@@ -32,8 +30,7 @@ module REG_FILE(
         end
     end
 
-   
-    
+    // Combinational reads happen instantly, picking up the stable data
     assign d1 = (rs1 == 5'b0) ? 32'b0 : registers[rs1];
     assign d2 = (rs2 == 5'b0) ? 32'b0 : registers[rs2];
 

@@ -1,0 +1,13 @@
+.text
+.globl main
+main:
+ addi x9,x0,4
+ addi x2,x0,5
+ bgt x2,x9, L1
+ addi x9,x0,43
+ addi x2,x0,63
+ addi x2,x0,63 
+ addi x2,x0,63
+L1: add x0,x0,x0
+
+
