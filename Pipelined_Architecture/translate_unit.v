@@ -43,7 +43,7 @@ module translate_unit (
                     case (funct3)
                         3'b000: out_inst = {2'b00, rvc[10:7], rvc[12:11], rvc[5], rvc[6], 2'b00, 5'd2, 3'b000, r2_p, OP_IMM}; // C.ADDI4SPN
                         3'b010: out_inst = {5'b0, rvc[5], rvc[12:10], rvc[6], 2'b00, r_p, 3'b010, r2_p, OP_LOAD};               // C.LW
-                        3'b110: out_inst = {5'b0, rvc[5], rvc[12:10], r2_p, r_p, 3'b010, rvc[6], 2'b00, OP_STORE};              // C.SW
+                        3'b110: out_inst = {5'b0, rvc[5], rvc[12], r2_p, r_p, 3'b010, rvc[11], rvc[10], rvc[6], 2'b00, OP_STORE};              // C.SW
                     endcase
                 end
 
